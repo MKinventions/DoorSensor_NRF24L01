@@ -6,11 +6,12 @@ description: |
 on:
   push:
     branches:
-      - main  # Trigger build on push to main branch
+      # - main  # Trigger build on push to main branch
+      - Development
   pull_request:
     branches:
-      - main  # Trigger build on pull requests to main branch
-
+      # - main  # Trigger build on pull requests to main branch
+      - Development
 jobs:
   
   #############################[NANO]######################################################
