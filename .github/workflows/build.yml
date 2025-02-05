@@ -1,0 +1,60 @@
+name: Build and Compile Firmware
+
+description: |
+  This workflow automates the compilation and build process for Arduino Nano, ESP8266 and ESP32 using PlatformIO.
+
+on:
+  push:
+    branches:
+      - main  # Trigger build on push to main branch
+  pull_request:
+    branches:
+      - main  # Trigger build on pull requests to main branch
+
+jobs:
+  
+  #############################[NANO]######################################################
+  build_nano:
+    name: Compile Firmware for Arduino Nano
+    runs-on: ubuntu-latest  # Use the latest Ubuntu environment
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4  # Fetch the latest code from the repository
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio  # Install PlatformIO CLI
+
+      - name: Build Firmware for Arduino Nano
+        run: pio run -e nanoatmega328  # Compile the firmware for Arduino Nano
+
+      - name: Upload Compiled Firmware
+        uses: actions/upload-artifact@v4  # Upload the compiled firmware as an artifact
+        with:
+          name: firmware-nano
+          path: .pio/build/nanoatmega328/firmware.*  # Path to the compiled firmware
+
+  #############################[UNO]######################################################
+  build_uno:
+    name: Compile Firmware for Arduino Uno
+    runs-on: ubuntu-latest  # Use the latest Ubuntu environment
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4  # Fetch the latest code from the repository
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio  # Install PlatformIO CLI
+
+      - name: Build Firmware for Arduino Uno
+        run: pio run -e uno  # Compile the firmware for Arduino Nano
+
+      - name: Upload Compiled Firmware
+        uses: actions/upload-artifact@v4  # Upload the compiled firmware as an artifact
+        with:
+          name: firmware-uno
+          path: .pio/build/uno/firmware.*  # Path to the compiled firmware
+
+
