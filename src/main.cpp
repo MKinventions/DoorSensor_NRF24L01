@@ -1,0 +1,153 @@
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+#include <ArduinoJson.h>
+#include <EEPROM.h>
+
+// NRF24L01 Pins
+#define CE 9
+#define CSN 10
+#define DOOR 8
+
+RF24 radio(CE, CSN);
+const byte address[6] = "10001";
+
+// Constants
+const char slaveID[] = "10D";
+const int firmwareVersion = 10;
+const int doorAddr = 11;
+const int restartCounterAddr = 20; // EEPROM address for restart counter
+
+// Variables
+uint8_t doorOpenCounter = 0;
+uint8_t restartCounter = 0;
+bool previousDoorState = LOW;
+
+// Timing variables
+unsigned long lastSystemInfoTime = 0;
+const unsigned long systemInfoInterval = 30000; // 10 seconds
+
+void softwareReset()
+{
+  asm volatile("jmp 0"); // Software Reset
+}
+
+void NRF24_Init();
+void sendDoorStatus(int doorSensor);
+void sendSystemInfo();
+void sendData(const char *text);
+void handleSystemInfo();
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(DOOR, INPUT_PULLUP);
+
+  // Read and update Restart Counter
+  EEPROM.get(restartCounterAddr, restartCounter);
+  if (restartCounter == 0xFF) restartCounter = 0; // Initialize if uninitialized
+  EEPROM.put(restartCounterAddr, ++restartCounter);
+  Serial.println("Device Restart Count: " + String(restartCounter));
+
+  // Read and Initialize Door Counter
+  EEPROM.get(doorAddr, doorOpenCounter);
+  if (doorOpenCounter == 0xFF) doorOpenCounter = 0; // Initialize if uninitialized
+  Serial.println("Restored Door Count: " + String(doorOpenCounter));
+
+  NRF24_Init();
+}
+
+void loop()
+{
+  int doorSensor = !digitalRead(DOOR); // Invert due to INPUT_PULLUP
+
+  // Detect door opening (Rising Edge)
+  if (doorSensor == HIGH && previousDoorState == LOW)
+  {
+    EEPROM.put(doorAddr, ++doorOpenCounter); // Increment and store only if changed
+    Serial.println("Door Opened! Count: " + String(doorOpenCounter));
+  }
+
+  previousDoorState = doorSensor; // Update previous state
+
+sendDoorStatus(doorSensor);
+delay(100);
+
+  // Handle system info sending at defined interval
+  handleSystemInfo();
+}
+
+void handleSystemInfo()
+{
+  // Send System Info every 10 seconds
+  if (millis() - lastSystemInfoTime >= systemInfoInterval)
+  {
+    lastSystemInfoTime = millis();
+    sendSystemInfo();
+  }
+}
+
+void sendDoorStatus(int doorSensor)
+{
+  StaticJsonDocument<32> doc;
+  doc["ID"] = slaveID;
+  doc["DS"] = doorSensor;
+  doc["DC"] = doorOpenCounter;
+
+  char jsonBuffer[32];
+  serializeJson(doc, jsonBuffer);
+  sendData(jsonBuffer);
+}
+
+void sendSystemInfo()
+{
+  StaticJsonDocument<32> doc;
+  doc["FW"] = firmwareVersion;
+  doc["RC"] = restartCounter;
+
+  char jsonBuffer[32];
+  serializeJson(doc, jsonBuffer);
+  sendData(jsonBuffer);
+}
+
+void sendData(const char *text)
+{
+  static unsigned long previousMillis = 0;
+  const long interval = 100; // Minimum interval between transmissions
+
+  if (strlen(text) > 31) // Allow up to 31 characters + null terminator
+  {
+    Serial.println("Payload Size Limit Exceeded! [" + String(strlen(text)) + "] Bytes");
+    return;
+  }
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval)
+  {
+    previousMillis = currentMillis;
+
+    if (radio.write(text, strlen(text) + 1)) // +1 to include null terminator
+    {
+      Serial.println("Sent: [" + String(strlen(text) + 1) + "] Bytes -> " + String(text));
+    }
+    else
+    {
+      Serial.println("Send Failed! Reconnecting...");
+      softwareReset();
+    }
+  }
+}
+
+void NRF24_Init()
+{
+  if (!radio.begin())
+  {
+    Serial.println("NRF24L01 Initialization Failed!");
+    return;
+  }
+
+  radio.openWritingPipe(address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.stopListening();
+  Serial.println("NRF24L01 Initialized Successfully!");
+}
