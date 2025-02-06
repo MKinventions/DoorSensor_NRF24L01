@@ -13,7 +13,7 @@ const byte address[6] = "10001";
 
 // Constants
 const char slaveID[] = "10D";
-const int firmwareVersion = 10; // version:1.0
+const int firmwareVersion = 11; // version:1.1
 const int doorAddr = 11;
 const int restartCounterAddr = 20; // EEPROM address for restart counter
 
