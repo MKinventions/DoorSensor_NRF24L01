@@ -13,9 +13,9 @@ const byte address[6] = "10001";
 
 // Constants
 const char slaveID[] = "10D";
-const int firmwareVersion = 10; // version:1.0
-const int doorAddr = 11;
-const int restartCounterAddr = 20; // EEPROM address for restart counter
+const int firmwareVersion = 12; // version:1.2
+const int doorAddr = 0x11;
+const int restartCounterAddr = 0x12; // EEPROM address for restart counter
 
 // Variables
 uint8_t doorOpenCounter = 0;
@@ -26,10 +26,10 @@ bool previousDoorState = LOW;
 unsigned long lastSystemInfoTime = 0;
 const unsigned long systemInfoInterval = 30000; // 30 seconds
 
-void softwareReset()
-{
-  asm volatile("jmp 0"); // Software Reset
-}
+// void softwareReset()
+// {
+//   asm volatile("jmp 0"); // Software Reset
+// }
 
 void NRF24_Init();
 void sendDoorStatus(int doorSensor);
@@ -62,7 +62,7 @@ void setup()
 
 void loop()
 {
-  int doorSensor = !digitalRead(DOOR); // Invert due to INPUT_PULLUP
+  int doorSensor = digitalRead(DOOR); // Invert due to INPUT_PULLUP
   doorStateLed = (doorSensor == 1)? true : false; 
   digitalWrite(DOOR_LED, doorStateLed);
 
@@ -140,8 +140,8 @@ void sendData(const char *text)
     else
     {
       nodeStateLed = false;
-      Serial.println("Send Failed! Reconnecting...");
-      softwareReset();
+      Serial.println("Send Failed! connecting...");
+      // softwareReset();
     }
   }
 }
