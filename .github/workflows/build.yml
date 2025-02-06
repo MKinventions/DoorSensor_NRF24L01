@@ -28,13 +28,13 @@ jobs:
           pip install platformio  # Install PlatformIO CLI
 
       - name: Build Firmware for Arduino Nano
-        run: pio run -e nanoatmega328  # Compile the firmware for Arduino Nano
+        run: pio run -e nano  # Compile the firmware for Arduino Nano
 
       - name: Upload Compiled Firmware
         uses: actions/upload-artifact@v4  # Upload the compiled firmware as an artifact
         with:
           name: firmware-nano
-          path: .pio/build/nanoatmega328/firmware.*  # Path to the compiled firmware
+          path: .pio/build/nano/firmware.*  # Path to the compiled firmware
 
   #############################[UNO]######################################################
   build_uno:
