@@ -4,7 +4,6 @@
 #include <ArduinoJson.h>
 #include <EEPROM.h>
 
-
 bool doorStateLed = false;
 bool nodeStateLed = false;
 
@@ -13,23 +12,23 @@ const byte address[6] = "10001";
 
 // Constants
 const char slaveID[] = "10D";
-const int firmwareVersion = 12; // version:1.2
+const int firmwareVersion = 13; // version:1.2
 const int doorAddr = 0x11;
 const int restartCounterAddr = 0x12; // EEPROM address for restart counter
+const int openDurationAddr = 0x13;
 
 // Variables
 uint8_t doorOpenCounter = 0;
 uint8_t restartCounter = 0;
 bool previousDoorState = LOW;
 
+unsigned long startOpenTimer = 0;
+unsigned long openDuration = 0;
+bool doorPreviouslyOpen = false; // Track previous state
+
 // Timing variables
 unsigned long lastSystemInfoTime = 0;
 const unsigned long systemInfoInterval = 30000; // 30 seconds
-
-void softwareReset()
-{
-  asm volatile("jmp 0"); // Software Reset
-}
 
 void NRF24_Init();
 void sendDoorStatus(int doorSensor);
@@ -57,13 +56,23 @@ void setup()
     doorOpenCounter = 0; // Initialize if uninitialized
   Serial.println("Restored Door Count: " + String(doorOpenCounter));
 
+  // Read stored duration from EEPROM
+  EEPROM.get(openDurationAddr, openDuration);
+  // Validate EEPROM data (if uninitialized, set to 0)
+  if (openDuration == 0xFFFFFFFF || openDuration > 86400)
+  { // 86400 = 24 hours in seconds
+    openDuration = 0;
+    EEPROM.put(openDurationAddr, openDuration);
+  }
+  Serial.println("Read Duration from EEPROM: " + String(openDuration) + "s");
+
   NRF24_Init();
 }
 
 void loop()
 {
   int doorSensor = !digitalRead(DOOR); // Invert due to INPUT_PULLUP
-  doorStateLed = (doorSensor == 1)? true : false; 
+  doorStateLed = (doorSensor == 1) ? true : false;
   digitalWrite(DOOR_LED, doorStateLed);
 
   // Detect door opening (Rising Edge)
@@ -72,9 +81,34 @@ void loop()
     doorStateLed = true;
     EEPROM.put(doorAddr, ++doorOpenCounter); // Increment and store only if changed
     Serial.println("Door Opened! Count: " + String(doorOpenCounter));
+
+    startOpenTimer = millis(); // Start timing
+    doorPreviouslyOpen = true;
   }
+
+  // Detect door closing (Falling Edge)
+  else if (doorSensor == LOW && previousDoorState == HIGH)
+  {
+    openDuration = (millis() - startOpenTimer) / 1000; // Calculate duration in seconds
+    Serial.println("Door Closed! Duration: " + String(openDuration) + "s");
+
+    // Store duration in EEPROM
+    EEPROM.put(openDurationAddr, openDuration);
+    Serial.println("Duration saved to EEPROM!");
+    /*******************************************/
+    StaticJsonDocument<32> doc;
+    doc["DU"] = openDuration;  
+    char jsonBuffer[32];
+    serializeJson(doc, jsonBuffer);
+    sendData(jsonBuffer);
+    /*******************************************/
+
+    startOpenTimer = 0;
+    doorPreviouslyOpen = false;
+  }
+
   previousDoorState = doorSensor; // Update previous state
-  
+
   digitalWrite(NODE_LED, nodeStateLed);
   sendDoorStatus(doorSensor);
   delay(100);
@@ -110,6 +144,7 @@ void sendSystemInfo()
   StaticJsonDocument<32> doc;
   doc["FW"] = firmwareVersion;
   doc["RC"] = restartCounter;
+  doc["DU"] = openDuration;
 
   char jsonBuffer[32];
   serializeJson(doc, jsonBuffer);
@@ -135,13 +170,13 @@ void sendData(const char *text)
     if (radio.write(text, strlen(text) + 1)) // +1 to include null terminator
     {
       nodeStateLed = true;
-      Serial.println("Sent: [" + String(strlen(text) + 1) + "] Bytes -> " + String(text));
+      // Serial.println("Sent: [" + String(strlen(text) + 1) + "] Bytes -> " + String(text));
     }
     else
     {
       nodeStateLed = false;
       Serial.println("Send Failed! Reconnecting...");
-      softwareReset();
+      // softwareReset();
     }
   }
 }
