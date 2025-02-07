@@ -170,7 +170,7 @@ void sendData(const char *text)
     if (radio.write(text, strlen(text) + 1)) // +1 to include null terminator
     {
       nodeStateLed = true;
-      // Serial.println("Sent: [" + String(strlen(text) + 1) + "] Bytes -> " + String(text));
+      Serial.println("Sent: [" + String(strlen(text) + 1) + "] Bytes -> " + String(text));
     }
     else
     {
